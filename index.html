@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5x5 益智拼圖挑戰系統 V5.2</title>
+    <style>
+        :root {
+            --color-p0: #9c27b0; /* 紫 */
+            --color-p1: #ff9800; /* 橘 */
+            --color-p2: #3f51b5; /* 靛 */
+            --color-p3: #e91e63; /* 桃 */
+            --color-p4: #ffeb3b; /* 黃 */
+            --color-p5: #00bcd4; /* 青 */
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            margin: 0;
+            user-select: none;
+        }
+
+        h1 { 
+            color: #333; 
+            margin-bottom: 10px; 
+            font-size: 22px;
+            text-align: center;
+        }
+
+        /* 頁籤切換按鈕 - 緊貼棋盤寬度 */
+        .tab-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+            width: 100%;
+            max-width: 360px; /* 緊貼 5x5 棋盤寬度，消除兩側空白 */
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            background: #e0e0e0;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: #673ab7;
+            color: white;
+        }
+
+        /* 頁面區塊控制 */
+        .page {
+            display: none;
+            width: 100%;
+            max-width: 360px; /* 統一最大寬度，避免右側留白 */
+        }
+        .page.active { display: block; }
+
+        .collapsible-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            overflow: hidden;
+            margin-bottom: 12px;
+            width: 100%;
+        }
+        .collapsible-header {
+            background: #673ab7;
+            color: white;
+            padding: 10px 15px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background: #fff;
+        }
+        .collapsible-content .inner-text {
+            padding: 12px 15px;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #444;
+        }
+
+        .game-container, .book-container {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            width: 100%;
+        }
+
+        /* 5x5 棋盤 - 精確計算尺寸 */
+        .board {
+            display: grid;
+            grid-template-columns: repeat(5, 60px);
+            grid-template-rows: repeat(5, 60px);
+            gap: 5px;
+            background-color: #e0e0e0;
+            padding: 6px;
+            border-radius: 8px;
+            margin: 0 auto 15px auto;
+            width: 331px; /* 5 * 60 + 4 * 5 + 2 * 6 = 331px */
+            height: 331px;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: #fff;
+            border-radius: 6px;
+        }
+
+        .board.setup-phase .bg-green { background-color: #a1e3a1; }
+        .board.setup-phase .bg-blue  { background-color: #90caf9; }
+        .board.setup-phase .bg-red   { background-color: #ef9a9a; }
+        .board.setup-phase .bg-white { background-color: #ffffff; }
+        .board.playing-phase .cell { background-color: #f7f7f7; }
+
+        .cell.blocked { background-color: #333333 !important; }
+        .cell.blocked::after { content: "✕"; font-size: 24px; color: #ff4d4d; }
+        .cell.drawing { background-color: #e1bee7 !important; border: 3px dashed #9c27b0; color: #9c27b0; }
+        .cell.focus-lock { outline: 3px solid #ff5722; outline-offset: -3px; }
+
+        /* 題目編號與狀態顯示 */
+        .quiz-info-panel {
+            background: #fff3e0;
+            border: 1px solid #ffe0b2;
+            padding: 10px;
+            border-radius: 6px;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 12px;
+            font-weight: bold;
+            color: #e65100;
+            font-size: 13px;
+        }
+
+        .status-bar {
+            margin: 5px 0 12px 0;
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+        }
+
+        .inventory-icons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            width: 100%;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 8px;
+        }
+        .icon-card {
+            border: 2px solid #ccc;
+            background: white;
+            border-radius: 6px;
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            opacity: 0.6;
+        }
+        .icon-card.used { border-color: #4caf50; opacity: 1; }
+        .icon-label { font-size: 10px; font-weight: bold; color: #666; }
+        .icon-card.used .icon-label { color: #4caf50; }
+        .mini-grid { display: grid; gap: 1px; background: #eee; padding: 1px; }
+        .mini-cell { width: 10px; height: 10px; }
+        .mini-cell.filled { background-color: #666; }
+        .icon-card.used .mini-cell.filled.p-0 { background-color: var(--color-p0); }
+        .icon-card.used .mini-cell.filled.p-1 { background-color: var(--color-p1); }
+        .icon-card.used .mini-cell.filled.p-2 { background-color: var(--color-p2); }
+        .icon-card.used .mini-cell.filled.p-3 { background-color: var(--color-p3); }
+        .icon-card.used .mini-cell.filled.p-4 { background-color: var(--color-p4); }
+        .icon-card.used .mini-cell.filled.p-5 { background-color: var(--color-p5); }
+
+        .btn-vertical-group { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+        .btn-row { display: flex; gap: 8px; width: 100%; }
+        
+        button {
+            flex: 1;
+            padding: 10px 8px;
+            font-size: 13px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        button:active { transform: scale(0.98); }
+        .btn-primary { background-color: #673ab7; color: white; }
+        .btn-warning { background-color: #ff5722; color: white; }
+        .btn-secondary { background-color: #e0e0e0; color: #333; }
+        .btn-reset { background-color: #757575; color: white; }
+        .btn-success { background-color: #4caf50; color: white; }
+
+        /* 試題本紀錄清單 */
+        .record-list {
+            max-height: 280px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 5px;
+            margin-bottom: 12px;
+            background: #fafafa;
+        }
+        .record-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            background: white;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            gap: 5px;
+        }
+        .record-item:last-child { border-bottom: none; }
+        .record-info { flex: 1; min-width: 0; }
+        .record-title { font-weight: bold; font-size: 12px; color: #333; }
+        .record-time { font-size: 10px; color: #888; margin-top: 2px; }
+
+        /* 試題本中的 5x5 微型通關圖示 */
+        .record-mini-board {
+            display: grid;
+            grid-template-columns: repeat(5, 7px);
+            grid-template-rows: repeat(5, 7px);
+            gap: 1px;
+            background-color: #ccc;
+            padding: 2px;
+            border-radius: 3px;
+            flex-shrink: 0;
+            margin: 0 5px;
+        }
+        .mini-board-cell {
+            width: 7px;
+            height: 7px;
+            background-color: #fff;
+        }
+        .mini-board-cell.blocked { background-color: #333 !important; }
+        .mini-board-cell.p-0 { background-color: var(--color-p0); }
+        .mini-board-cell.p-1 { background-color: var(--color-p1); }
+        .mini-board-cell.p-2 { background-color: var(--color-p2); }
+        .mini-board-cell.p-3 { background-color: var(--color-p3); }
+        .mini-board-cell.p-4 { background-color: var(--color-p4); }
+        .mini-board-cell.p-5 { background-color: var(--color-p5); }
+
+        #import-file { display: none; }
+
+        .toast-container {
+            position: fixed;
+            top: -60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #323232;
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 9999;
+            transition: top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+            opacity: 0;
+        }
+        .toast-container.show { top: 30px; opacity: 1; }
+        .toast-error { background-color: #d32f2f; }
+        .toast-success { background-color: #388e3c; }
+    </style>
+</head>
+<body>
+
+    <h1>5x5 益智拼圖挑戰系統</h1>
+
+    <div class="tab-group">
+        <button class="tab-btn active" id="tab-game" onclick="switchPage('game')">🎮 遊戲棋盤</button>
+        <button class="tab-btn" id="tab-book" onclick="switchPage('book')">📒 通關試題本 (<span id="book-count">0</span>)</button>
+    </div>
+    
+    <!-- ================= 頁面一：遊戲棋盤 ================= -->
+    <div id="page-game" class="page active">
+        <div class="collapsible-container">
+            <div class="collapsible-header" onclick="toggleInstruction()">
+                <span>📖 規則與操作說明</span>
+                <span id="arrow-icon">▼</span>
+            </div>
+            <div class="collapsible-content" id="instruction-content">
+                <div class="inner-text">
+                    1. <strong>設定阻擋：</strong> 請先在棋盤的 🟢 綠、🔵 藍、🔴 紅區域中各點 1 格。完成後系統將自動生成專屬**「題目編號 (1~392)」**。<br>
+                    2. <strong>繪製積木與審查：</strong> 在棋盤上勾勒形狀（點選變紫色），點擊「確認此方塊」。當 6 個方塊全數完美填滿，該題即判定解開，並永久記錄於試題本中。<br>
+                    3. <strong>解散回收：</strong> 點選已鎖定之積木，即可按「解散此積木」回收重新畫。
+                </div>
+            </div>
+        </div>
+
+        <div class="game-container">
+            <div class="quiz-info-panel" id="quiz-info">
+                當前狀態：請先選定阻擋格以解鎖試題編號
+            </div>
+
+            <div class="board setup-phase" id="game-board"></div>
+            <div class="status-bar" id="status-msg">步驟 1：請在綠、藍、紅區各選 1 格當阻擋格。</div>
+            <div class="inventory-icons" id="inventory-icons"></div>
+            
+            <div class="btn-vertical-group">
+                <button id="confirm-btn" class="btn-primary" onclick="handleConfirmPiece()" style="display:none;">確認此方塊</button>
+                <button id="disband-btn" class="btn-warning" onclick="handleDisbandPiece()" style="display:none;">解散此積木</button>
+                <div class="btn-row">
+                    <button class="btn-secondary" onclick="clearPlacedPiecesOnly()">清空已放置積木</button>
+                    <button class="btn-reset" onclick="resetGame()">重設整個遊戲</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= 頁面二：獨立試題本 ================= -->
+    <div id="page-book" class="page">
+        <div class="book-container">
+            <h3>📒 我的通關紀錄本</h3>
+            <p style="font-size: 11px; color:#666; margin-bottom:12px;">此處記錄您成功解開的所有題目與當時解開時的擺法。點擊「還原」可以一鍵復原當時解答。</p>
+            
+            <div class="record-list" id="record-list">
+                <!-- 紀錄動態插入 -->
+            </div>
+
+            <div class="btn-vertical-group">
+                <div class="btn-row">
+                    <button class="btn-primary" onclick="exportRecords()">📤 匯出紀錄文字檔</button>
+                    <button class="btn-success" onclick="triggerImport()">📥 匯入紀錄文字檔</button>
+                </div>
+                <input type="file" id="import-file" accept=".json,.txt" onchange="importRecords(event)">
+                <button class="btn-reset" onclick="clearAllRecords()">⚠️ 清空所有通關紀錄</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast-container"></div>
+
+    <script>
+        const boardTemplate = [
+            ['G', 'G', 'G', 'G', 'G'],
+            ['G', 'B', 'R', 'W', 'G'],
+            ['W', 'B', 'R', 'R', 'R'],
+            ['B', 'B', 'B', 'B', 'R'],
+            ['B', 'B', 'W', 'R', 'R']
+        ];
+
+        const targetPieces = [
+            { id: 0, matrix: [[1, 1], [1, 0], [1, 0]] },
+            { id: 1, matrix: [[1, 1], [1, 1]] },
+            { id: 2, matrix: [[1, 0], [1, 1], [1, 0]] },
+            { id: 3, matrix: [[1, 1], [1, 0]] },
+            { id: 4, matrix: [[1], [1], [1]] },
+            { id: 5, matrix: [[1, 0], [1, 1], [0, 1]] }
+        ];
+
+        let boardState = Array(5).fill(null).map(() => Array(5).fill(0));
+        let blockedColors = { 'G': null, 'B': null, 'R': null };
+        let gameState = 'SETUP'; 
+        let completedPiecesIds = []; 
+        let selectedBlockForDisband = null;
+        
+        let currentQuizId = null; 
+        let solvedQuizzes = {};   
+
+        const colorClasses = { 'G': 'bg-green', 'B': 'bg-blue', 'R': 'bg-red', 'W': 'bg-white' };
+
+        let greenCells = [], redCells = [], blueCells = [];
+        for(let r=0; r<5; r++){
+            for(let c=0; c<5; c++){
+                if(boardTemplate[r][c]==='G') greenCells.push({r,c});
+                if(boardTemplate[r][c]==='R') redCells.push({r,c});
+                if(boardTemplate[r][c]==='B') blueCells.push({r,c});
+            }
+        }
+
+        function init() {
+            if (localStorage.getItem('solved_puzzles')) {
+                try {
+                    solvedQuizzes = JSON.parse(localStorage.getItem('solved_puzzles'));
+                } catch(e) { solvedQuizzes = {}; }
+            }
+            renderBoard();
+            renderInventoryIcons();
+            updateBookUI();
+        }
+
+        function switchPage(pageName) {
+            document.getElementById('tab-game').classList.toggle('active', pageName === 'game');
+            document.getElementById('tab-book').classList.toggle('active', pageName === 'book');
+            document.getElementById('page-game').classList.toggle('active', pageName === 'game');
+            document.getElementById('page-book').classList.toggle('active', pageName === 'book');
+        }
+
+        function toggleInstruction() {
+            const content = document.getElementById('instruction-content');
+            const arrow = document.getElementById('arrow-icon');
+            content.style.maxHeight = (content.style.maxHeight && content.style.maxHeight !== '0px') ? '0px' : content.scrollHeight + 'px';
+            arrow.innerText = content.style.maxHeight === '0px' ? '▼' : '▲';
+        }
+
+        function showToast(message, type = 'error') {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.className = 'toast-container show ' + (type === 'success' ? 'toast-success' : 'toast-error');
+            setTimeout(() => { toast.classList.remove('show'); }, 2000);
+        }
+
+        function calculateQuizId(g, r, b) {
+            if(!g || !r || !b) return null;
+            let gIdx = greenCells.findIndex(c => c.r === g.r && c.c === g.c);
+            let rIdx = redCells.findIndex(c => c.r === r.r && c.c === r.c);
+            let bIdx = blueCells.findIndex(c => c.r === b.r && c.c === b.c);
+            
+            if(gIdx === -1 || rIdx === -1 || bIdx === -1) return 999;
+            return (gIdx * 56) + (rIdx * 8) + bIdx + 1;
+        }
+
+        function updateQuizInfoPanel() {
+            const panel = document.getElementById('quiz-info');
+            if (gameState === 'SETUP') {
+                panel.style.background = '#fff3e0';
+                panel.style.color = '#e65100';
+                panel.innerText = '當前狀態：請先選定阻擋格以解鎖試題編號';
+                return;
+            }
+            currentQuizId = calculateQuizId(blockedColors['G'], blockedColors['R'], blockedColors['B']);
+            
+            if (solvedQuizzes[currentQuizId]) {
+                panel.style.background = '#e8f5e9';
+                panel.style.color = '#2e7d32';
+                panel.innerText = `題目編號：#${currentQuizId} / 392  [ 🟢 已解開此題 ]`;
+            } else {
+                panel.style.background = '#eceff1';
+                panel.style.color = '#37474f';
+                panel.innerText = `題目編號：#${currentQuizId} / 392  [ 🔴 尚未解開 ]`;
+            }
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('game-board');
+            boardEl.innerHTML = '';
+            boardEl.className = (gameState === 'SETUP') ? "board setup-phase" : "board playing-phase";
+
+            for (let r = 0; r < 5; r++) {
+                for (let c = 0; c < 5; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    if (gameState === 'SETUP') cell.classList.add(colorClasses[boardTemplate[r][c]]);
+
+                    const val = boardState[r][c];
+                    if (val === -1) {
+                        cell.classList.add('blocked');
+                    } else if (val === 1) {
+                        cell.classList.add('drawing');
+                        cell.innerText = "★";
+                    } else if (val >= 20) {
+                        const pid = val - 20;
+                        cell.style.backgroundColor = `var(--color-p${pid})`;
+                        cell.style.color = (pid === 4) ? '#333' : '#fff';
+                        cell.innerText = `P${pid + 1}`;
+                        if (selectedBlockForDisband && boardState[selectedBlockForDisband.r][selectedBlockForDisband.c] === val && boardState[r][c] === val) {
+                            cell.classList.add('focus-lock');
+                        }
+                    }
+                    cell.addEventListener('click', () => handleCellClick(r, c));
+                    boardEl.appendChild(cell);
+                }
+            }
+            document.getElementById('confirm-btn').style.display = (gameState === 'PLAYING') ? 'inline-block' : 'none';
+            document.getElementById('disband-btn').style.display = (selectedBlockForDisband !== null) ? 'inline-block' : 'none';
+            updateQuizInfoPanel();
+        }
+
+        function handleCellClick(r, c) {
+            if (gameState === 'SETUP') {
+                const colorType = boardTemplate[r][c];
+                if (colorType === 'W') { showToast('白色格子不能選為阻擋格！'); return; }
+
+                if (blockedColors[colorType] !== null) {
+                    boardState[blockedColors[colorType].r][blockedColors[colorType].c] = 0;
+                }
+                boardState[r][c] = -1;
+                blockedColors[colorType] = { r, c };
+
+                if (blockedColors['G'] && blockedColors['B'] && blockedColors['R']) {
+                    gameState = 'PLAYING';
+                    document.getElementById('status-msg').innerText = '阻擋格設定完成！請直接在畫面上勾勒圖形。';
+                } else {
+                    document.getElementById('status-msg').innerText = '請繼續點選其餘顏色的阻擋格。';
+                }
+                renderBoard();
+            } else if (gameState === 'PLAYING') {
+                if (boardState[r][c] === -1) return;
+                if (boardState[r][c] >= 20) {
+                    selectedBlockForDisband = { r, c, val: boardState[r][c] };
+                    renderBoard();
+                    return;
+                }
+                selectedBlockForDisband = null;
+                boardState[r][c] = (boardState[r][c] === 1) ? 0 : 1;
+                renderBoard();
+            }
+        }
+
+        function handleConfirmPiece() {
+            let coords = [];
+            for (let r = 0; r < 5; r++) {
+                for (let c = 0; c < 5; c++) {
+                    if (boardState[r][c] === 1) coords.push({r, c});
+                }
+            }
+            if (coords.length === 0) { showToast('請先選取紫色格子！'); return; }
+
+            let minR = 5, maxR = -1, minC = 5, maxC = -1;
+            coords.forEach(pt => {
+                if (pt.r < minR) minR = pt.r; if (pt.r > maxR) maxR = pt.r;
+                if (pt.c < minC) minC = pt.c; if (pt.c > maxC) maxC = pt.c;
+            });
+
+            let h = maxR - minR + 1, w = maxC - minC + 1;
+            let userMatrix = Array(h).fill(null).map(() => Array(w).fill(0));
+            coords.forEach(pt => { userMatrix[pt.r - minR][pt.c - minC] = 1; });
+
+            let matchedIdx = -1;
+            for (let i = 0; i < targetPieces.length; i++) {
+                if (getTransformations(targetPieces[i].matrix).some(t => isSameMatrix(userMatrix, t))) {
+                    matchedIdx = i; break;
+                }
+            }
+
+            if (matchedIdx === -1) { showToast('❌ 形狀不符，請重新調整！'); return; }
+            if (completedPiecesIds.includes(matchedIdx)) { showToast('⚠️ 此積木樣式已重複！'); return; }
+
+            coords.forEach(pt => { boardState[pt.r][pt.c] = 20 + matchedIdx; });
+            completedPiecesIds.push(matchedIdx);
+            
+            showToast('✨ 積木加入成功！', 'success');
+            selectedBlockForDisband = null;
+            renderBoard();
+            renderInventoryIcons();
+            checkWinCondition();
+        }
+
+        function handleDisbandPiece() {
+            if (!selectedBlockForDisband) return;
+            const targetVal = selectedBlockForDisband.val;
+            for (let r = 0; r < 5; r++) {
+                for (let c = 0; c < 5; c++) {
+                    if (boardState[r][c] === targetVal) boardState[r][c] = 0;
+                }
+            }
+            completedPiecesIds = completedPiecesIds.filter(id => id !== (targetVal - 20));
+            selectedBlockForDisband = null;
+            renderBoard();
+            renderInventoryIcons();
+        }
+
+        function checkWinCondition() {
+            if (completedPiecesIds.length === 6) {
+                showToast('🎉 恭喜通關！本題紀錄已同步至試題本！', 'success');
+                
+                if (!solvedQuizzes[currentQuizId]) {
+                    const now = new Date();
+                    solvedQuizzes[currentQuizId] = {
+                        quizId: currentQuizId,
+                        blocked: JSON.parse(JSON.stringify(blockedColors)),
+                        // 儲存當時通關時整個棋盤的實際解法圖案
+                        solutionBoard: JSON.parse(JSON.stringify(boardState)),
+                        time: `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`
+                    };
+                    localStorage.setItem('solved_puzzles', JSON.stringify(solvedQuizzes));
+                    updateBookUI();
+                }
+                renderBoard();
+            }
+        }
+
+        // 更新通關紀錄列表，加上「迷你圖案」
+        function updateBookUI() {
+            const listEl = document.getElementById('record-list');
+            const countEl = document.getElementById('book-count');
+            listEl.innerHTML = '';
+            
+            const keys = Object.keys(solvedQuizzes).sort((a,b) => a - b);
+            countEl.innerText = keys.length;
+
+            if (keys.length === 0) {
+                listEl.innerHTML = '<div style="text-align:center; color:#aaa; padding:20px;">目前尚無任何通關紀錄</div>';
+                return;
+            }
+
+            keys.forEach(key => {
+                const q = solvedQuizzes[key];
+                const item = document.createElement('div');
+                item.className = 'record-item';
+                
+                // 產生 5x5 的小預覽
+                const miniBoard = document.createElement('div');
+                miniBoard.className = 'record-mini-board';
+                
+                for (let r = 0; r < 5; r++) {
+                    for (let c = 0; c < 5; c++) {
+                        const miniCell = document.createElement('div');
+                        miniCell.className = 'mini-board-cell';
+                        
+                        // 讀取當天通關的 boardState 數據
+                        const val = q.solutionBoard ? q.solutionBoard[r][c] : (q.blocked && isBlocked(q.blocked, r, c) ? -1 : 0);
+                        if (val === -1) {
+                            miniCell.classList.add('blocked');
+                        } else if (val >= 20) {
+                            miniCell.classList.add(`p-${val - 20}`);
+                        }
+                        miniBoard.appendChild(miniCell);
+                    }
+                }
+
+                item.innerHTML = `
+                    <div class="record-info">
+                        <div class="record-title">題目編號：#${q.quizId} / 392</div>
+                        <div class="record-time">${q.time}</div>
+                    </div>
+                `;
+                
+                // 插入預覽圖示和還原按鈕
+                item.appendChild(miniBoard);
+                
+                const restoreBtn = document.createElement('button');
+                restoreBtn.className = 'btn-primary';
+                restoreBtn.style.padding = '6px 10px';
+                restoreBtn.style.fontSize = '11px';
+                restoreBtn.style.flex = 'none';
+                restoreBtn.innerText = '還原';
+                restoreBtn.onclick = () => loadRecordFromBook(q.quizId);
+                
+                item.appendChild(restoreBtn);
+                listEl.appendChild(item);
+            });
+        }
+
+        // 判斷是否為阻擋格 (用於處理舊版無 solutionBoard 的相容性)
+        function isBlocked(blockedObj, r, c) {
+            return Object.values(blockedObj).some(pt => pt && pt.r === r && pt.c === c);
+        }
+
+        // 點選試題本紀錄，完整還原當天所有的積木擺法與位置！
+        function loadRecordFromBook(quizId) {
+            const record = solvedQuizzes[quizId];
+            if (!record) return;
+            
+            blockedColors = JSON.parse(JSON.stringify(record.blocked));
+            
+            // 如果此紀錄內含有解答棋盤，則完整復原擺法
+            if (record.solutionBoard) {
+                boardState = JSON.parse(JSON.stringify(record.solutionBoard));
+                // 重新計算已經通關的積木 ID 清單 (20~25)
+                completedPiecesIds = [];
+                for (let r = 0; r < 5; r++) {
+                    for (let c = 0; c < 5; c++) {
+                        const val = boardState[r][c];
+                        if (val >= 20) {
+                            const pid = val - 20;
+                            if (!completedPiecesIds.includes(pid)) {
+                                completedPiecesIds.push(pid);
+                            }
+                        }
+                    }
+                }
+            } else {
+                // 相容舊版無解答紀錄：僅還原阻擋格
+                boardState = Array(5).fill(null).map(() => Array(5).fill(0));
+                Object.keys(blockedColors).forEach(k => {
+                    const pt = blockedColors[k];
+                    if(pt) boardState[pt.r][pt.c] = -1;
+                });
+                completedPiecesIds = [];
+            }
+
+            gameState = 'PLAYING';
+            selectedBlockForDisband = null;
+            
+            switchPage('game');
+            renderBoard();
+            renderInventoryIcons();
+            showToast(`已載入並還原題目 #${quizId} 的解答！`, 'success');
+        }
+
+        function exportRecords() {
+            if (Object.keys(solvedQuizzes).length === 0) {
+                showToast('試題本目前空空的，沒有任何紀錄可以匯出！');
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(solvedQuizzes));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "puzzle_records.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('📤 紀錄檔案已成功匯出下載！', 'success');
+        }
+
+        function triggerImport() {
+            document.getElementById('import-file').click();
+        }
+
+        function importRecords(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result || e.target.target.result);
+                    if (typeof importedData !== 'object') {
+                        showToast('❌ 檔案格式不合！');
+                        return;
+                    }
+                    solvedQuizzes = Object.assign({}, solvedQuizzes, importedData);
+                    localStorage.setItem('solved_puzzles', JSON.stringify(solvedQuizzes));
+                    updateBookUI();
+                    renderBoard();
+                    showToast('📥 成功匯入紀錄並更新試題本！', 'success');
+                } catch (err) {
+                    showToast('❌ 檔案解析失敗。');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function clearAllRecords() {
+            if (confirm('⚠️ 確定要刪除試題本裡面所有的通關紀錄嗎？此動作無法復原！')) {
+                solvedQuizzes = {};
+                localStorage.removeItem('solved_puzzles');
+                updateBookUI();
+                renderBoard();
+                showToast('已清空所有通關歷史數據。');
+            }
+        }
+
+        function clearPlacedPiecesOnly() {
+            for (let r = 0; r < 5; r++) {
+                for (let c = 0; c < 5; c++) {
+                    if (boardState[r][c] !== -1) boardState[r][c] = 0;
+                }
+            }
+            completedPiecesIds = [];
+            selectedBlockForDisband = null;
+            if (gameState !== 'SETUP') {
+                document.getElementById('status-msg').innerText = '已清空積木，阻擋格已為您保留。';
+            }
+            renderBoard();
+            renderInventoryIcons();
+        }
+
+        function resetGame() {
+            boardState = Array(5).fill(null).map(() => Array(5).fill(0));
+            blockedColors = { 'G': null, 'B': null, 'R': null };
+            gameState = 'SETUP';
+            completedPiecesIds = [];
+            selectedBlockForDisband = null;
+            document.getElementById('status-msg').innerText = '步驟 1：請在綠、藍、紅區各選 1 格當阻擋格。';
+            init();
+        }
+
+        function renderInventoryIcons() {
+            const container = document.getElementById('inventory-icons');
+            container.innerHTML = '';
+            targetPieces.forEach(p => {
+                const isUsed = completedPiecesIds.includes(p.id);
+                const card = document.createElement('div');
+                card.className = `icon-card ${isUsed ? 'used' : ''}`;
+                const mini = document.createElement('div');
+                mini.classList.add('mini-grid');
+                mini.style.gridTemplateColumns = `repeat(${p.matrix[0].length}, 10px)`;
+                
+                for (let r = 0; r < p.matrix.length; r++) {
+                    for (let c = 0; c < p.matrix[0].length; c++) {
+                        const mCell = document.createElement('div');
+                        mCell.className = 'mini-cell';
+                        if (p.matrix[r][c] === 1) mCell.classList.add('filled', `p-${p.id}`);
+                        mini.appendChild(mCell);
+                    }
+                }
+                const label = document.createElement('div');
+                label.className = 'icon-label';
+                label.innerText = `P${p.id + 1}`;
+                card.appendChild(mini);
+                card.appendChild(label);
+                container.appendChild(card);
+            });
+        }
+
+        function isSameMatrix(m1, m2) {
+            if (m1.length !== m2.length || m1[0].length !== m2[0].length) return false;
+            for (let r = 0; r < m1.length; r++) {
+                for (let c = 0; c < m1[0].length; c++) { if (m1[r][c] !== m2[r][c]) return false; }
+            }
+            return true;
+        }
+
+        function getTransformations(matrix) {
+            let transforms = []; let current = matrix;
+            for (let i = 0; i < 4; i++) {
+                transforms.push(current); transforms.push(current.map(row => [...row].reverse()));
+                let r = current.length, c = current[0].length;
+                let rotated = Array(c).fill(null).map(() => Array(r).fill(0));
+                for (let x = 0; x < r; x++) {
+                    for (let y = 0; y < c; y++) { rotated[y][r - 1 - x] = current[x][y]; }
+                }
+                current = rotated;
+            }
+            return transforms;
+        }
+
+        init();
+    </script>
+</body>
+</html>
